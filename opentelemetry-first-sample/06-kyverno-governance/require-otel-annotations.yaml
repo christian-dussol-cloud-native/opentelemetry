@@ -1,0 +1,40 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-otel-annotations
+  annotations:
+    policies.kyverno.io/title: Require OpenTelemetry Annotations
+    policies.kyverno.io/category: Observability Governance
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods without OpenTelemetry instrumentation annotations produce no traces
+      and incomplete metrics. This policy ensures every pod in the demo namespace
+      declares its instrumentation intent, enabling the OTel Operator to
+      auto-instrument workloads and the Collector to receive telemetry data.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-otel-instrumentation-annotation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+      validate:
+        message: >-
+          OpenTelemetry instrumentation annotation is required.
+          Add one of the following annotations to your Pod:
+            instrumentation.opentelemetry.io/inject-python: "true"
+            instrumentation.opentelemetry.io/inject-java: "true"
+            instrumentation.opentelemetry.io/inject-nodejs: "true"
+          This enables zero-code auto-instrumentation by the OTel Operator.
+        pattern:
+          metadata:
+            annotations:
+              =(instrumentation.opentelemetry.io/inject-python): "?*"
+              =(instrumentation.opentelemetry.io/inject-java): "?*"
+              =(instrumentation.opentelemetry.io/inject-nodejs): "?*"

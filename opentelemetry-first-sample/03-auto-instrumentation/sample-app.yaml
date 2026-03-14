@@ -1,0 +1,117 @@
+# =============================================================================
+# Sample Python Flask App — Auto-Instrumented by OTel Operator
+# =============================================================================
+# The key annotation below tells the Operator to inject the Python SDK.
+# NO code changes needed in the application itself!
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-python-app
+  namespace: demo
+  labels:
+    app: sample-python-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-python-app
+  template:
+    metadata:
+      labels:
+        app: sample-python-app
+      annotations:
+        # ⬇️ THIS IS THE MAGIC — triggers auto-instrumentation
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install flask requests && python /app/server.py
+          ports:
+            - containerPort: 5000
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "sample-python-app"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: sample-app-code
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sample-app-code
+  namespace: demo
+data:
+  server.py: |
+    from flask import Flask, jsonify
+    import time
+    import random
+
+    app = Flask(__name__)
+
+    @app.route("/hello")
+    def hello():
+        """Simple endpoint — auto-instrumented by OTel"""
+        return jsonify({"message": "Hello from OTel auto-instrumented app!"})
+
+    @app.route("/users")
+    def users():
+        """Simulates a DB call with variable latency"""
+        # Simulate database query
+        time.sleep(random.uniform(0.01, 0.1))
+        return jsonify({
+            "users": [
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"},
+            ]
+        })
+
+    @app.route("/slow")
+    def slow():
+        """Intentionally slow endpoint for testing"""
+        time.sleep(random.uniform(0.5, 2.0))
+        return jsonify({"message": "This was intentionally slow"})
+
+    @app.route("/error")
+    def error():
+        """Intentional error for testing error traces"""
+        if random.random() > 0.5:
+            raise ValueError("Random error for testing!")
+        return jsonify({"message": "Lucky — no error this time"})
+
+    if __name__ == "__main__":
+        app.run(host="0.0.0.0", port=5000)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-python-app
+  namespace: demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: 5000
+  selector:
+    app: sample-python-app

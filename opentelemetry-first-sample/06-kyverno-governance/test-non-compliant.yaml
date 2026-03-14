@@ -1,0 +1,31 @@
+# =============================================================================
+# Test: Non-Compliant Deployment (should be BLOCKED by Kyverno)
+# =============================================================================
+# Missing:
+#   ❌ No OTel auto-instrumentation annotation
+#   ❌ No OTEL_SERVICE_NAME env var
+#   ❌ No resource limits
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: non-compliant-app
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: non-compliant-app
+  template:
+    metadata:
+      labels:
+        app: non-compliant-app
+      # ❌ No OTel annotation!
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          # ❌ No OTEL_SERVICE_NAME!
+          # ❌ No resource limits!

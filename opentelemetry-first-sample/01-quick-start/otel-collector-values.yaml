@@ -1,0 +1,93 @@
+# =============================================================================
+# OpenTelemetry Collector - Helm Values (Quick Start)
+# =============================================================================
+# Educational configuration for CNCF Project Focus #5
+# This config sets up a basic Collector pipeline:
+#   Receive (OTLP) → Process (batch) → Export (Jaeger + logging)
+# =============================================================================
+
+mode: deployment  # Gateway mode (centralized collector)
+
+replicaCount: 1
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.96.0"
+
+# --- Ports exposed by the Collector ---
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317      # gRPC
+    servicePort: 4317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318      # HTTP
+    servicePort: 4318
+    protocol: TCP
+  prometheus:
+    enabled: true
+    containerPort: 8889      # Prometheus metrics exporter
+    servicePort: 8889
+    protocol: TCP
+
+# --- Collector Pipeline Configuration ---
+config:
+  # RECEIVERS: How data gets INTO the Collector
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  # PROCESSORS: Transform/filter/batch data
+  processors:
+    batch:
+      timeout: 5s
+      send_batch_size: 1024
+    memory_limiter:
+      check_interval: 1s
+      limit_mib: 512
+      spike_limit_mib: 128
+
+  # EXPORTERS: Where data goes OUT
+  exporters:
+    # Console output (for debugging/learning)
+    debug:
+      verbosity: detailed
+    # Jaeger for traces
+    otlp/jaeger:
+      endpoint: jaeger-collector.observability.svc.cluster.local:4317
+      tls:
+        insecure: true
+    # Prometheus for metrics
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      namespace: otel
+
+  # PIPELINES: Connect receivers → processors → exporters
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/jaeger, debug]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus, debug]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug]
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-instrumentation
+  annotations:
+    policies.kyverno.io/title: Validate Instrumentation Resource Exists
+    policies.kyverno.io/category: Observability Governance
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods referencing an OTel Instrumentation resource that does not exist
+      will silently produce no telemetry. This policy audits pods in the demo
+      namespace to ensure they reference the expected 'otel-instrumentation'
+      resource, preventing silent observability gaps.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: validate-instrumentation-reference
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+      validate:
+        message: >-
+          Pods with OTel inject annotations must reference a valid Instrumentation
+          resource in the same namespace. Ensure 'otel-instrumentation' exists in
+          the 'demo' namespace:
+            kubectl get instrumentation -n demo
+        pattern:
+          metadata:
+            annotations:
+              =(instrumentation.opentelemetry.io/inject-python): "true"

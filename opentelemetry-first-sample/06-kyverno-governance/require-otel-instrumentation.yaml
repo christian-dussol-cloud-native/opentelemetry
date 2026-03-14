@@ -1,0 +1,64 @@
+# =============================================================================
+# Kyverno Policy: Require OTel Auto-Instrumentation Annotation
+# =============================================================================
+# Ensures every Deployment in production namespaces has the OpenTelemetry
+# auto-instrumentation annotation. No annotation = no deployment.
+#
+# This prevents observability blind spots in production.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-otel-instrumentation
+  annotations:
+    policies.kyverno.io/title: Require OpenTelemetry Instrumentation
+    policies.kyverno.io/category: Observability
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Deployment
+    policies.kyverno.io/description: >-
+      Requires all Deployments in production namespaces to have an
+      OpenTelemetry auto-instrumentation annotation. This ensures
+      every workload is observable and traces are collected.
+spec:
+  validationFailureAction: Enforce  # Block non-compliant deployments
+  background: true
+  rules:
+    - name: check-otel-annotation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+              namespaces:
+                - demo
+                - production
+      validate:
+        message: >-
+          Deployment {{ request.object.metadata.name }} is missing an
+          OpenTelemetry auto-instrumentation annotation.
+          Add one of these annotations to pod template metadata:
+            instrumentation.opentelemetry.io/inject-python: "true"
+            instrumentation.opentelemetry.io/inject-java: "true"
+            instrumentation.opentelemetry.io/inject-nodejs: "true"
+            instrumentation.opentelemetry.io/inject-dotnet: "true"
+        anyPattern:
+          - spec:
+              template:
+                metadata:
+                  annotations:
+                    instrumentation.opentelemetry.io/inject-python: "true"
+          - spec:
+              template:
+                metadata:
+                  annotations:
+                    instrumentation.opentelemetry.io/inject-java: "true"
+          - spec:
+              template:
+                metadata:
+                  annotations:
+                    instrumentation.opentelemetry.io/inject-nodejs: "true"
+          - spec:
+              template:
+                metadata:
+                  annotations:
+                    instrumentation.opentelemetry.io/inject-dotnet: "true"

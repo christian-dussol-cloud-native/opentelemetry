@@ -1,0 +1,68 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-tracing-labels
+  annotations:
+    policies.kyverno.io/title: Require Tracing Labels
+    policies.kyverno.io/category: Observability Governance
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Correlated observability requires consistent labeling across all workloads.
+      This policy ensures every pod has 'app', 'team', and 'environment' labels,
+      enabling the OTel Collector to enrich telemetry with service ownership data
+      and Grafana to filter traces and metrics by team or environment.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-app-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+      validate:
+        message: >-
+          The label 'app' is required for service identification in traces.
+          Example: app: order-service
+        pattern:
+          metadata:
+            labels:
+              app: "?*"
+
+    - name: require-team-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+      validate:
+        message: >-
+          The label 'team' is required for ownership attribution in dashboards.
+          Example: team: platform
+        pattern:
+          metadata:
+            labels:
+              team: "?*"
+
+    - name: require-environment-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+      validate:
+        message: >-
+          The label 'environment' is required for environment segmentation.
+          Allowed values: development, staging, production
+        pattern:
+          metadata:
+            labels:
+              environment: "development | staging | production"

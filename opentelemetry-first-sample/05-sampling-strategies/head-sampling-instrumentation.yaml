@@ -1,0 +1,25 @@
+# =============================================================================
+# Head Sampling — 10% trace ratio at SDK level
+# =============================================================================
+# Decision is made BEFORE the trace is sent to the Collector.
+# Pro: Low overhead, simple.
+# Con: You might miss important error/slow traces.
+# =============================================================================
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: otel-instrumentation-head-sampling
+  namespace: demo
+spec:
+  exporter:
+    endpoint: http://otel-collector-opentelemetry-collector.observability.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    # parentbased_traceidratio: Respects parent's sampling decision.
+    # If no parent, samples at the given ratio.
+    type: parentbased_traceidratio
+    argument: "0.1"   # 10% of traces are sampled
+  python:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.43b0

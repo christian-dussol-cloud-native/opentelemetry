@@ -1,0 +1,141 @@
+# =============================================================================
+# Inventory Service — Manages stock and reservations
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: demo
+  labels:
+    app: inventory-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+        team: platform
+        environment: development
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c", "pip install 'flask==2.3.3' 'werkzeug==2.3.7' && python /app/main.py"]
+          ports:
+            - containerPort: 8082
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "inventory-service"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: inventory-service-code
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-service-code
+  namespace: demo
+data:
+  main.py: |
+    import time
+    import random
+    import logging
+    from flask import Flask, request, jsonify
+
+    app = Flask(__name__)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    # Simulated in-memory inventory
+    INVENTORY = {
+        "laptop": 50,
+        "phone": 100,
+        "tablet": 30,
+        "headphones": 200,
+        "keyboard": 75,
+    }
+
+    @app.route("/health")
+    def health():
+        return jsonify({"status": "healthy"})
+
+    @app.route("/reserve", methods=["POST"])
+    def reserve_items():
+        """
+        Reserve inventory:
+        1. Check stock availability
+        2. Reserve items
+        3. Confirm reservation
+        """
+        data = request.get_json()
+        order_id = data.get("order_id", "unknown")
+        item = data.get("item", "unknown")
+        quantity = data.get("quantity", 1)
+
+        logger.info(f"Reserving {quantity}x {item} for order {order_id}")
+
+        # Step 1: Check stock
+        time.sleep(random.uniform(0.02, 0.08))
+
+        available = INVENTORY.get(item, 0)
+        if quantity > available:
+            logger.warning(f"Insufficient stock for {item}: requested={quantity}, available={available}")
+            return jsonify({
+                "order_id": order_id,
+                "item": item,
+                "status": "insufficient_stock",
+                "available": available,
+                "requested": quantity,
+            }), 409
+
+        # Step 2: Reserve items
+        time.sleep(random.uniform(0.05, 0.15))
+        INVENTORY[item] = available - quantity
+
+        reservation_id = f"RES-{random.randint(10000, 99999)}"
+
+        return jsonify({
+            "reservation_id": reservation_id,
+            "order_id": order_id,
+            "item": item,
+            "quantity": quantity,
+            "remaining_stock": INVENTORY[item],
+            "status": "reserved",
+        })
+
+    @app.route("/stock", methods=["GET"])
+    def get_stock():
+        """Get current inventory levels"""
+        return jsonify(INVENTORY)
+
+    if __name__ == "__main__":
+        app.run(host="0.0.0.0", port=8082)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8082
+      targetPort: 8082
+  selector:
+    app: inventory-service

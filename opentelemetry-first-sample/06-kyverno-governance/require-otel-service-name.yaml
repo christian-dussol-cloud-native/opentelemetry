@@ -1,0 +1,45 @@
+# =============================================================================
+# Kyverno Policy: Require OTEL_SERVICE_NAME Environment Variable
+# =============================================================================
+# Without OTEL_SERVICE_NAME, traces show up as "unknown_service" in Jaeger.
+# This policy ensures every container explicitly sets a service name.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-otel-service-name
+  annotations:
+    policies.kyverno.io/title: Require OTEL_SERVICE_NAME
+    policies.kyverno.io/category: Observability
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Deployment
+    policies.kyverno.io/description: >-
+      Requires all containers to have the OTEL_SERVICE_NAME environment
+      variable set. This ensures traces are properly labeled in the
+      observability backend.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-otel-service-name
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+              namespaces:
+                - demo
+                - production
+      validate:
+        message: >-
+          A container in Deployment {{ request.object.metadata.name }} is missing
+          the OTEL_SERVICE_NAME environment variable.
+          Add: env: [{name: OTEL_SERVICE_NAME, value: "your-service-name"}]
+        foreach:
+          - list: "request.object.spec.template.spec.containers"
+            deny:
+              conditions:
+                all:
+                  - key: OTEL_SERVICE_NAME
+                    operator: AnyNotIn
+                    value: "{{ element.env[].name || `[]` }}"

@@ -1,0 +1,35 @@
+# =============================================================================
+# OpenTelemetry Instrumentation CRD
+# =============================================================================
+# This resource tells the OTel Operator HOW to auto-instrument pods.
+# Any pod with the annotation:
+#   instrumentation.opentelemetry.io/inject-python: "true"
+# will automatically get the Python OTel SDK injected.
+# =============================================================================
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: otel-instrumentation
+  namespace: demo
+spec:
+  # Where to send telemetry data (OTel Collector endpoint)
+  exporter:
+    endpoint: http://otel-collector-opentelemetry-collector.observability.svc.cluster.local:4318
+  propagators:
+    - tracecontext   # W3C Trace Context (standard)
+    - baggage        # W3C Baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"  # Sample 100% (learning mode — reduce in production!)
+  python:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.50b0
+    env:
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
+        value: "true"
+  java:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.1.0
+  env:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment=learning-lab"

@@ -1,0 +1,121 @@
+# =============================================================================
+# Payment Service — Processes payments for orders
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: demo
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        team: platform
+        environment: development
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c", "pip install 'flask==2.3.3' 'werkzeug==2.3.7' && python /app/main.py"]
+          ports:
+            - containerPort: 8081
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: "payment-service"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: payment-service-code
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-service-code
+  namespace: demo
+data:
+  main.py: |
+    import time
+    import random
+    import logging
+    from flask import Flask, request, jsonify
+
+    app = Flask(__name__)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    @app.route("/health")
+    def health():
+        return jsonify({"status": "healthy"})
+
+    @app.route("/process", methods=["POST"])
+    def process_payment():
+        """
+        Process a payment:
+        1. Authenticate/authorize
+        2. Process the payment
+        3. Return confirmation
+        """
+        data = request.get_json()
+        order_id = data.get("order_id", "unknown")
+        amount = data.get("amount", 0)
+
+        logger.info(f"Processing payment for order {order_id}: ${amount}")
+
+        # Step 1: Auth check
+        time.sleep(random.uniform(0.01, 0.03))
+
+        # Step 2: Process payment (simulate external gateway call)
+        time.sleep(random.uniform(0.05, 0.15))
+
+        # Simulate occasional payment failures (10% chance)
+        if random.random() < 0.1:
+            logger.warning(f"Payment declined for order {order_id}")
+            return jsonify({
+                "order_id": order_id,
+                "status": "declined",
+                "reason": "Insufficient funds",
+            }), 402
+
+        payment_id = f"PAY-{random.randint(10000, 99999)}"
+
+        return jsonify({
+            "payment_id": payment_id,
+            "order_id": order_id,
+            "amount": amount,
+            "status": "approved",
+        })
+
+    if __name__ == "__main__":
+        app.run(host="0.0.0.0", port=8081)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: demo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: 8081
+  selector:
+    app: payment-service

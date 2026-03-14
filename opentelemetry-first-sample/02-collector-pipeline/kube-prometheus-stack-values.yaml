@@ -1,0 +1,75 @@
+# =============================================================================
+# kube-prometheus-stack - Helm Values for OTel Learning Lab
+# =============================================================================
+# Bundles: Prometheus + Grafana + Alertmanager
+# Scrapes the OTel Collector's Prometheus exporter endpoint (port 8889)
+# =============================================================================
+
+# --- Prometheus ---
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    # Scrape OTel Collector metrics exporter
+    additionalScrapeConfigs:
+      - job_name: 'otel-collector-metrics'
+        scrape_interval: 15s
+        static_configs:
+          - targets:
+              - 'otel-collector-opentelemetry-collector.observability.svc.cluster.local:8889'
+      - job_name: 'otel-collector-internal'
+        scrape_interval: 15s
+        static_configs:
+          - targets:
+              - 'otel-collector-opentelemetry-collector.observability.svc.cluster.local:8887'
+
+# --- Grafana ---
+grafana:
+  adminUser: admin
+  adminPassword: admin
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  additionalDataSources:
+    - name: Jaeger
+      type: jaeger
+      url: http://jaeger-query.observability.svc.cluster.local:16686
+      access: proxy
+
+# --- Disable unused components for the learning lab ---
+alertmanager:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+kubeApiServer:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+defaultRules:
+  create: false

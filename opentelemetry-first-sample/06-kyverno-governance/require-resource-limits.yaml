@@ -1,0 +1,49 @@
+# =============================================================================
+# Kyverno Policy: Require Resource Limits
+# =============================================================================
+# OTel SDK auto-instrumentation adds ~30-80MB memory overhead.
+# Without resource limits, pods can consume unbounded resources.
+# This is a reusable governance policy from the Kubernetes Resource
+# Management series.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits-otel
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits (OTel-aware)
+    policies.kyverno.io/category: Resource Management
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires all containers to have CPU and memory limits defined.
+      Critical when using OTel auto-instrumentation, which adds overhead.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-resource-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - demo
+                - production
+      validate:
+        message: >-
+          A container in {{ request.object.metadata.name }} is missing CPU or memory limits.
+          OTel auto-instrumentation adds ~50MB memory overhead —
+          account for this in your limits.
+        foreach:
+          - list: "request.object.spec.containers"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory || '' }}"
+                    operator: Equals
+                    value: ""
+                  - key: "{{ element.resources.limits.cpu || '' }}"
+                    operator: Equals
+                    value: ""

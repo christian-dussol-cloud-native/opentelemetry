@@ -1,0 +1,44 @@
+# =============================================================================
+# Test: Compliant Deployment (should be ALLOWED by Kyverno)
+# =============================================================================
+# ✅ OTel auto-instrumentation annotation present
+# ✅ OTEL_SERVICE_NAME env var set
+# ✅ Resource limits defined (with OTel overhead accounted for)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliant-app
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: compliant-app
+  template:
+    metadata:
+      labels:
+        app: compliant-app
+        team: platform
+        environment: development
+      annotations:
+        # ✅ OTel auto-instrumentation annotation
+        instrumentation.opentelemetry.io/inject-python: "true"
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          ports:
+            - containerPort: 8080
+          env:
+            # ✅ OTEL_SERVICE_NAME set
+            - name: OTEL_SERVICE_NAME
+              value: "compliant-app"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              # ✅ Resource limits defined (includes ~50MB for OTel SDK)
+              cpu: 250m
+              memory: 256Mi
