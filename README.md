@@ -35,7 +35,7 @@ This repository provides **learning materials and reference implementations**. A
 
 ### Medium related articles
 
-*Coming soon*
+- [OpenTelemetry — Vendor-Neutral Unified Observability for Cloud-Native](https://medium.com/@christian.dussol/opentelemetry-vendor-neutral-unified-observability-for-cloud-native-d8fccf4475e9)
 
 ## License
 
